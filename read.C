@@ -6,6 +6,7 @@
 #include <TFile.h>
 #include <TTree.h>
 #include <TH1D.h>
+#include <TMath.h>
 
 //C, C++
 #include <stdio.h>
@@ -32,6 +33,7 @@ double coef = 2.5 / (4096 * 10);
   int Ptype=-999; // 1=hadrons, 2=electron, 3=muons
 
 float CFD(TH1F* hWave,bool isNegative = 1);
+float* getBL(TH1F* hWave, bool isNegative, float* BL);
 TString getRunName(TString inDataFolder);
 void read(TString inFileList, TString inDataFolder, TString outFile);
 
@@ -116,6 +118,9 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   Int_t ChannelNr[16];
   Float_t amp[16];
   Float_t t[16];
+  Float_t BL[16];//store baseline for 16 channels
+  Float_t BL_RMS[16];//store rms of baseline for 16 channels
+  float BL_output[2];//array used for output getBL-function
   Int_t EventIDsamIndex[16];
   Int_t FirstCellToPlotsamIndex[16];
 
@@ -157,6 +162,8 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("ch",ChannelNr, "ch[nCh]/I");
   tree->Branch("amp",amp, "amp[nCh]/F");
   tree->Branch("t",t, "t[nCh]/F");
+  tree->Branch("BL", BL, "BL[nCh]/F");
+  tree->Branch("BL_RMS", BL_RMS, "BL_RMS[nCh]/F");
   tree->Branch("EventIDsamIndex",EventIDsamIndex, "EventIDsamIndex[nCh]/I");
   tree->Branch("FirstCellToPlotsamIndex",FirstCellToPlotsamIndex, "FirstCellToPlotsamIndex[nCh]/I");
 
@@ -273,6 +280,9 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	  }
 	  amp[i]=hCh.GetMaximum();
 	  t[i] = CFD(&hCh);
+    getBL(&hCh, 1, BL_output);
+    BL[i] = BL_output[0];
+    BL_RMS[i] = BL_output[1];
 
           if(EventNumber%ch0PrintRate==0&&i==0){
 	    cCh0.cd(1);
@@ -344,7 +354,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
     cTrig.Print((TString)(plotSaveFolder+"/trig.pdf)"),"pdf");
     cSignal.Print((TString)(plotSaveFolder+"/signal.pdf)"),"pdf");
 
-
   rootFile = tree->GetCurrentFile();
   rootFile->Write();
   rootFile->Close();
@@ -366,6 +375,29 @@ float CFD(TH1F* hWave,bool isNegative){
   time = SP*(timePos);
   //time = SP*(peakPos);
   return time;
+}
+
+float* getBL(TH1F* hWave, bool isNegative, float* BL){
+  /*
+  Function to calculate the baseline of the given TH1F-Object.
+  Input: TH1F-Object to calculate baseline for; bool isNegative; float-array BL for the output
+  Output: baseline and rms of baseline written to 1st and 2nd component of BL-array
+  The baseline is calculated as the mean of the first 50 values in the TH1F-Object. The rms
+  value is also calculated from the first 50 values.
+  
+  The float-array BL that is used for the output must be declared before the function call using 'float BL[2];'.
+  This is to insure that the output is stored on the heap and not deleted when the memory on the stack is freed up.
+   
+  Dependencies: function uses C++ vector-class and needs the TMath-header
+  */
+  
+  vector<float> amp(50);
+  for (int i = 0; i < 50; i++){
+    amp[i] = hWave->GetBinContent(i+1);
+  }
+  BL[0] = TMath::Mean(amp.begin(), amp.end());
+  BL[1] = TMath::RMS(amp.begin(), amp.end());
+  return BL;
 }
 
 TString getRunName(TString inDataFolder){
