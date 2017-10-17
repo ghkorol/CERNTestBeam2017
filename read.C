@@ -20,7 +20,7 @@
 using namespace std;
 
 float SP = 0.3125;
-int wavesPrintRate = 1000000;
+int wavesPrintRate = 1000;
 int ch0PrintRate = 1000000;
 int trigPrintRate = 100;
 int signalPrintRate = 100;
@@ -121,6 +121,8 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   Float_t BL[16];//store baseline for 16 channels
   Float_t BL_RMS[16];//store rms of baseline for 16 channels
   float BL_output[2];//array used for output getBL-function
+  float Integral_0_300[16];//array used to store Integral of signal from 0 to 300ns
+  int NumberOfBins;
   Int_t EventIDsamIndex[16];
   Int_t FirstCellToPlotsamIndex[16];
 
@@ -164,6 +166,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("t",t, "t[nCh]/F");
   tree->Branch("BL", BL, "BL[nCh]/F");
   tree->Branch("BL_RMS", BL_RMS, "BL_RMS[nCh]/F");
+  tree->Branch("Integral_0_300", Integral_0_300, "Integral_0_300[nCh]/F");
   tree->Branch("EventIDsamIndex",EventIDsamIndex, "EventIDsamIndex[nCh]/I");
   tree->Branch("FirstCellToPlotsamIndex",FirstCellToPlotsamIndex, "FirstCellToPlotsamIndex[nCh]/I");
 
@@ -283,6 +286,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
     getBL(&hCh, 1, BL_output);
     BL[i] = BL_output[0];
     BL_RMS[i] = BL_output[1];
+    Integral_0_300[i] = hCh.Integral(1,hCh.GetXaxis()->FindBin(300),"width");//Calculating Integral of histogram from 0 to 300ns
 
           if(EventNumber%ch0PrintRate==0&&i==0){
 	    cCh0.cd(1);
