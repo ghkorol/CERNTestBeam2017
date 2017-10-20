@@ -122,7 +122,14 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   Float_t BL_RMS[16];//store rms of baseline for 16 channels
   float BL_output[2];//array used for output getBL-function
   float Integral_0_300[16];//array used to store Integral of signal from 0 to 300ns
+  float Integral_trigT_20[16];
+  float Integral_trigT_40[16];
+  float Integral_trigT_60[16];
+  float Integral_trigT_80[16];
+  float Integral_trigT_100[16];
+  float Integral_trigT_300[16];
   int NumberOfBins;
+  int trig_bin;//stores the bin number corresponding to the trigger-time trigT; used for the Integration
   Int_t EventIDsamIndex[16];
   Int_t FirstCellToPlotsamIndex[16];
 
@@ -167,6 +174,12 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("BL", BL, "BL[nCh]/F");
   tree->Branch("BL_RMS", BL_RMS, "BL_RMS[nCh]/F");
   tree->Branch("Integral_0_300", Integral_0_300, "Integral_0_300[nCh]/F");
+  tree->Branch("Integral_trigT_20", Integral_trigT_20, "Integral_trigT_20[nCh]/F");
+  tree->Branch("Integral_trigT_40", Integral_trigT_20, "Integral_trigT_40[nCh]/F");
+  tree->Branch("Integral_trigT_60", Integral_trigT_20, "Integral_trigT_60[nCh]/F");
+  tree->Branch("Integral_trigT_80", Integral_trigT_20, "Integral_trigT_80[nCh]/F");
+  tree->Branch("Integral_trigT_100", Integral_trigT_20, "Integral_trigT_100[nCh]/F");
+  tree->Branch("Integral_trigT_300", Integral_trigT_20, "Integral_trigT_300[nCh]/F");
   tree->Branch("EventIDsamIndex",EventIDsamIndex, "EventIDsamIndex[nCh]/I");
   tree->Branch("FirstCellToPlotsamIndex",FirstCellToPlotsamIndex, "FirstCellToPlotsamIndex[nCh]/I");
 
@@ -286,7 +299,15 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
     getBL(&hCh, 1, BL_output);
     BL[i] = BL_output[0];
     BL_RMS[i] = BL_output[1];
-    Integral_0_300[i] = hCh.Integral(1,hCh.GetXaxis()->FindBin(300),"width");//Calculating Integral of histogram from 0 to 300ns
+    Integral_0_300[i] = hCh.Integral(1, hCh.GetXaxis()->FindBin(300), "width");//Calculating Integral of histogram from 0 to 300ns; starting from bin 1 (0 is the overflow bin) to bin corresponding to 300ns. Option "width" multiplies by bin-width such that the integral is independant of the binning
+    trig_bin = hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4);//Bin corresponding to the trigger-time, which is given by the average of the 4 trigger signals
+    //Calculating the Integral of the histogram from the trigger-Time (trigT) to trigT + 20/40/80/100/300ns
+    Integral_trigT_20[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 20), "width");
+    Integral_trigT_40[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 40), "width");
+    Integral_trigT_60[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 60), "width");
+    Integral_trigT_80[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 80), "width");
+    Integral_trigT_100[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 100), "width");
+    Integral_trigT_300[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 300), "width");
 
           if(EventNumber%ch0PrintRate==0&&i==0){
 	    cCh0.cd(1);
