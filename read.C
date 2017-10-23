@@ -14,24 +14,29 @@
 //#include <stdlib.h>
 #include <iostream>
 #include <fstream>
+#include <vector>
 //#include <string>
 //#include <iomanip>
 
 using namespace std;
 
 float SP = 0.3125;
-int wavesPrintRate = 1000;
+int wavesPrintRate = 100000;
 int ch0PrintRate = 1000000;
-int trigPrintRate = 100;
-int signalPrintRate = 100;
+int trigPrintRate = 1000000;//100
+int signalPrintRate = 100000;//100
 double coef = 2.5 / (4096 * 10);
 
   int runNr = -999;
   float horizontal=-999;
   float vertical=-999;
   float angle=-999;
-  int Ptype=-999; // 1=hadrons, 2=electron, 3=muons
-
+  int pdgID=-999;
+  float energy = -999; // [GeV]
+  int isSP = -999;
+  int mp = -999;
+  
+void cleanEventMemory(std::vector<TObject*>& trash);
 float CFD(TH1F* hWave,bool isNegative = 1);
 float* getBL(TH1F* hWave, bool isNegative, float* BL);
 TString getRunName(TString inDataFolder);
@@ -239,7 +244,11 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
       }
 
       int whileCounter = 0;
-      while(nitem>0){
+      while(nitem>0){ //event loop
+      std::vector<TObject*> eventTrash;
+      isVeto = 0;
+      
+      
       whileCounter++;
 	nitem = fread (&EventNumber	,sizeof(int), 1,pFILE);
 	nitem = fread (&EpochTime	,sizeof(double)      , 1,pFILE);
@@ -253,7 +262,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	nitem = fread (&nCh	,sizeof(unsigned int),1,pFILE); // since V2.8.14 the number of stored channels is written for each event
 
 
-	printf("POS, ev, y-m-d-h-min-s-ms, nActive-nCh: %ld, %d, %d-%d-%d-%d-%d-%d-%d, %d-%d \n", ftell(pFILE), EventNumber,Year,Month,Day,Hour,Minute,Second,Millisecond,nActiveCh,nCh);
+	if(EventNumber%100==0)printf("POS, ev, y-m-d-h-min-s-ms, nActive-nCh: %ld, %d, %d-%d-%d-%d-%d-%d-%d, %d-%d \n", ftell(pFILE), EventNumber,Year,Month,Day,Hour,Minute,Second,Millisecond,nActiveCh,nCh);
 
 	float	MeasuredBaseline[16];
 	float	AmplitudeValue[16];
@@ -369,7 +378,8 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 
 
       tree->Fill();
-      }//while ivents
+      //cleanEventMemory(eventTrash);
+      }//while events
 
     }//while
     inList.close();
@@ -436,4 +446,11 @@ TString getRunName(TString inDataFolder){
       }
 
       return (TString)lastWord;
+}
+
+void cleanEventMemory(std::vector<TObject*>& trash){
+  for(int i=0;i<(int)trash.size();i++){
+    trash.at(i)->Delete();
+  }
+  trash.clear();
 }
