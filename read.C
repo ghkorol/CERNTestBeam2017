@@ -135,8 +135,8 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 
   Short_t amplValues[16][1024];
   TH1F hCh("hCh","dummy;ns;Amplitude, mV",1024,-0.5*SP,1023.5*SP);
-  TString plotSaveFolder  = getRunName(_inFileList);
-  plotSaveFolder.ReplaceAll(".list","");
+  TString plotSaveFolder  = _outFile;
+  plotSaveFolder.ReplaceAll("out.root","");
   TCanvas cWaves("cWaves","cWaves",1000,700);
   cWaves.Divide(4,4);
   TCanvas cCh0("cCh0","cCh0",1500,900);
@@ -430,7 +430,7 @@ TString getRunName(TString inDataFolder){
       char* lastWord;
       word = strtok((char*)inDataFolder.Data(),"/");
       while(word != NULL){
-	 printf ("%s\n",word);
+	 //printf ("%s\n",word);
 	 lastWord = word;
 	 word = strtok(NULL, "/");
       }
