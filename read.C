@@ -56,15 +56,19 @@ int main(int argc, char *argv[]){
         <<"Out root file     : "<<outFile<<endl;
     read(inFileList, inDataFolder, outFile);
   }
-  else if(argc == 12){
+  else if(argc == 13){
     inFileList = argv[1];
     inDataFolder = argv[2];
     outFile = argv[3];
     runNr=atoi(argv[4]);
-    horizontal = atof(argv[5]);
-    vertical = atof(argv[6]);
+    horizontal = atof(argv[5])/1000; //units: [cm]
+    vertical = atof(argv[6])/1000; //units: [cm]
     angle = atof(argv[7]);
-    //argv[8] - nevents
+    //argv[8] - nevents from table
+    pdgID=atoi(argv[9]);// - pdgID
+    energy=atof(argv[10]);// - energy [GeV]
+    isSP=atoi(argv[11]);// - isSteelPlate
+    mp=atoi(argv[12]);//  measure-point
 
 
     cout<<"In data file list : "<<inFileList<<endl
@@ -118,6 +122,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   Float_t trigTp = -999;//t_trig' = [(t0+t1)-(t2+t3)]/4
   Float_t t0t1 = -999;//t0t1 = [(t0-t1)]
   Float_t t2t3 = -999;//t2t3 = [(t2-t3)]
+  Int_t isVeto = -999; //variable to define veto, 1 if veto, 0 if not, -999 if undefined
   Int_t nCh = -1;
   int nActiveCh = -1;
   Int_t ChannelNr[16];
@@ -168,10 +173,20 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("tSUMp",&tSUMp, "tSUMp/F");
   tree->Branch("tSUMm",&tSUMm, "tSUMm/F");
 
+  tree->Branch("runNr",&runNr, "runNr/I");//run number in google table
+  tree->Branch("horiz",&horizontal,"horiz/F");// horizontal position of the box units: [cm]
+  tree->Branch("vert",&vertical,"vert/F");//vertical position of the box, units: [cm]
+  tree->Branch("angle",&angle,"angle/F");
+  tree->Branch("pdgID",&pdgID,"pdgID/I");
+  tree->Branch("energy",&energy,"energy/F");
+  tree->Branch("isSP",&isSP,"isSP/I");
+  tree->Branch("mp",&mp,"mp/I");
+  
+  
   tree->Branch("trigTp",&trigTp, "trigTp/F");
-  tree->Branch("t0t1",&t0t1, "t0t1/F");
+  tree->Branch("t0t1",&t0t1, "t0t1/F");//t0t1 = [(t0-t1)]
   tree->Branch("t2t3",&t2t3, "t2t3/F");
-  tree->Branch("runNr",&runNr, "runNr/I");
+  tree->Branch("isVeto",&isVeto,"isVeto/I");
   tree->Branch("nCh",&nCh, "nCh/I");
   tree->Branch("ch",ChannelNr, "ch[nCh]/I");
   tree->Branch("amp",amp, "amp[nCh]/F");
@@ -299,24 +314,28 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 // 	}
 
 
+
+	  amp[i]=hCh.GetMaximum();
+	  t[i] = CFD(&hCh);
+	  if(amp[15]>10)isVeto=1;
+	    
 	  if(EventNumber%wavesPrintRate==0){
 	    cWaves.cd(1+4*(i%4)+(i)/4);
 	    hCh.DrawCopy();
 	  }
-	  amp[i]=hCh.GetMaximum();
-	  t[i] = CFD(&hCh);
-    getBL(&hCh, 1, BL_output);
-    BL[i] = BL_output[0];
-    BL_RMS[i] = BL_output[1];
-    Integral_0_300[i] = hCh.Integral(1, hCh.GetXaxis()->FindBin(300), "width");//Calculating Integral of histogram from 0 to 300ns; starting from bin 1 (0 is the overflow bin) to bin corresponding to 300ns. Option "width" multiplies by bin-width such that the integral is independant of the binning
-    trig_bin = hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4);//Bin corresponding to the trigger-time, which is given by the average of the 4 trigger signals
-    //Calculating the Integral of the histogram from the trigger-Time (trigT) to trigT + 20/40/80/100/300ns
-    Integral_trigT_20[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 20), "width");
-    Integral_trigT_40[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 40), "width");
-    Integral_trigT_60[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 60), "width");
-    Integral_trigT_80[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 80), "width");
-    Integral_trigT_100[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 100), "width");
-    Integral_trigT_300[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 300), "width");
+  
+	  getBL(&hCh, 1, BL_output);
+	  BL[i] = BL_output[0];
+	  BL_RMS[i] = BL_output[1];
+	  Integral_0_300[i] = hCh.Integral(1, hCh.GetXaxis()->FindBin(300), "width");//Calculating Integral of histogram from 0 to 300ns; starting from bin 1 (0 is the overflow bin) to bin corresponding to 300ns. Option "width" multiplies by bin-width such that the integral is independant of the binning
+	  trig_bin = hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4);//Bin corresponding to the trigger-time, which is given by the average of the 4 trigger signals
+	  //Calculating the Integral of the histogram from the trigger-Time (trigT) to trigT + 20/40/80/100/300ns
+	  Integral_trigT_20[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 20), "width");
+	  Integral_trigT_40[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 40), "width");
+	  Integral_trigT_60[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 60), "width");
+	  Integral_trigT_80[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 80), "width");
+	  Integral_trigT_100[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 100), "width");
+	  Integral_trigT_300[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 300), "width");
 
           if(EventNumber%ch0PrintRate==0&&i==0){
 	    cCh0.cd(1);
@@ -332,17 +351,19 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	 if(EventNumber%trigPrintRate==0&&(i>=0&&i<=3)){
 	    cTrig.cd(i+1);
 	    hCh.DrawCopy();
-	    TLine* ln = new TLine(t[i],-2000,t[i],2000); //stop point
+	    TLine* ln = new TLine(t[i],-2000,t[i],2000);
 	    ln->SetLineColor(2);
 	    ln->Draw("same");
+	    eventTrash.push_back(ln);
 	  }
 
 	 if(EventNumber%signalPrintRate==0&&(i>=4&&i<=7)){
 	    cSignal.cd(i+1-4);
 	    hCh.DrawCopy();
-	    TLine* ln = new TLine(t[i],-2000,t[i],2000); //stop point
+	    TLine* ln = new TLine(t[i],-2000,t[i],2000); 
 	    ln->SetLineColor(2);
 	    ln->Draw("same");
+	    eventTrash.push_back(ln);
 	  }
 
 
