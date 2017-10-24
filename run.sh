@@ -15,14 +15,14 @@ do
     lineArr=($line)
     if [ "${lineArr[0]}" = "$runNr" ]; then 
       runName=${lineArr[1]}
+      mkdir $here/runs/$runNr
+      if [ ! -e $here/runs/$runNr/$runName.list ]; then
+        ls $here/data/$runName | grep \.bin > $here/runs/$runNr/$runName.list
+      fi
+      time $here/read $here/runs/$runNr/$runName.list $here/data/$runName/ $here/runs/$runNr/out.root  ${lineArr[0]} ${lineArr[2]} ${lineArr[3]} ${lineArr[4]} ${lineArr[5]} ${lineArr[6]} ${lineArr[7]} ${lineArr[8]} ${lineArr[9]}
     fi
 done < ./runlist
 
-mkdir $here/runs/$runNr
-if [ ! -e $here/runs/$runNr/$runName.list ]; then
-  ls $here/data/$runName | grep \.bin > $here/runs/$runNr/$runName.list
-fi
-time $here/read $here/runs/$runNr/$runName.list $here/data/$runName/ $here/runs/$runNr/out.root
 
 
 # #valgrind --trace-children=yes --tool=massif time ./../read ./$1/$1.list ./../data/$1/ ./$1/$1.root  
