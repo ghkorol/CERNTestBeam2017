@@ -328,14 +328,14 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	  BL[i] = BL_output[0];
 	  BL_RMS[i] = BL_output[1];
 	  Integral_0_300[i] = hCh.Integral(1, hCh.GetXaxis()->FindBin(300), "width");//Calculating Integral of histogram from 0 to 300ns; starting from bin 1 (0 is the overflow bin) to bin corresponding to 300ns. Option "width" multiplies by bin-width such that the integral is independant of the binning
-	  trig_bin = hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4);//Bin corresponding to the trigger-time, which is given by the average of the 4 trigger signals
+	  trig_bin = hCh.GetXaxis()->FindBin(t[i]-10);//Bin corresponding to the trigger-time, which is given by the average of the 4 trigger signals
 	  //Calculating the Integral of the histogram from the trigger-Time (trigT) to trigT + 20/40/80/100/300ns
-	  Integral_trigT_20[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 20), "width");
-	  Integral_trigT_40[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 40), "width");
-	  Integral_trigT_60[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 60), "width");
-	  Integral_trigT_80[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 80), "width");
-	  Integral_trigT_100[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 100), "width");
-	  Integral_trigT_300[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[0]+t[1]+t[2]+t[3])/4 + 300), "width");
+	  Integral_trigT_20[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 20), "width");
+	  Integral_trigT_40[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 40), "width");
+	  Integral_trigT_60[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 60), "width");
+	  Integral_trigT_80[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 80), "width");
+	  Integral_trigT_100[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 100), "width");
+	  Integral_trigT_300[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 300), "width");
 
           if(EventNumber%ch0PrintRate==0&&i==0){
 	    cCh0.cd(1);
