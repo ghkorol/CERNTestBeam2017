@@ -195,11 +195,11 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("BL_RMS", BL_RMS, "BL_RMS[nCh]/F");
   tree->Branch("Integral_0_300", Integral_0_300, "Integral_0_300[nCh]/F");
   tree->Branch("Integral_trigT_20", Integral_trigT_20, "Integral_trigT_20[nCh]/F");
-  tree->Branch("Integral_trigT_40", Integral_trigT_20, "Integral_trigT_40[nCh]/F");
-  tree->Branch("Integral_trigT_60", Integral_trigT_20, "Integral_trigT_60[nCh]/F");
-  tree->Branch("Integral_trigT_80", Integral_trigT_20, "Integral_trigT_80[nCh]/F");
-  tree->Branch("Integral_trigT_100", Integral_trigT_20, "Integral_trigT_100[nCh]/F");
-  tree->Branch("Integral_trigT_300", Integral_trigT_20, "Integral_trigT_300[nCh]/F");
+  tree->Branch("Integral_trigT_40", Integral_trigT_40, "Integral_trigT_40[nCh]/F");
+  tree->Branch("Integral_trigT_60", Integral_trigT_60, "Integral_trigT_60[nCh]/F");
+  tree->Branch("Integral_trigT_80", Integral_trigT_80, "Integral_trigT_80[nCh]/F");
+  tree->Branch("Integral_trigT_100", Integral_trigT_100, "Integral_trigT_100[nCh]/F");
+  tree->Branch("Integral_trigT_300", Integral_trigT_300, "Integral_trigT_300[nCh]/F");
   tree->Branch("EventIDsamIndex",EventIDsamIndex, "EventIDsamIndex[nCh]/I");
   tree->Branch("FirstCellToPlotsamIndex",FirstCellToPlotsamIndex, "FirstCellToPlotsamIndex[nCh]/I");
 
