@@ -205,16 +205,10 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("BL", BL, "BL[nCh]/F");
   tree->Branch("BL_RMS", BL_RMS, "BL_RMS[nCh]/F");
   tree->Branch("Integral_0_300", Integral_0_300, "Integral_0_300[nCh]/F");
-  tree->Branch("Integral_trigT_20", Integral_trigT_20, "Integral_trigT_20[nCh]/F");
-  tree->Branch("Integral_trigT_40", Integral_trigT_40, "Integral_trigT_40[nCh]/F");
-  tree->Branch("Integral_trigT_60", Integral_trigT_60, "Integral_trigT_60[nCh]/F");
-  tree->Branch("Integral_trigT_80", Integral_trigT_80, "Integral_trigT_80[nCh]/F");
-  tree->Branch("Integral_trigT_100", Integral_trigT_100, "Integral_trigT_100[nCh]/F");
-  tree->Branch("Integral_trigT_300", Integral_trigT_300, "Integral_trigT_300[nCh]/F");
+
   tree->Branch("EventIDsamIndex",EventIDsamIndex, "EventIDsamIndex[nCh]/I");
   tree->Branch("FirstCellToPlotsamIndex",FirstCellToPlotsamIndex, "FirstCellToPlotsamIndex[nCh]/I");
 
-  ///tree->Branch();
 // // //   tree->Branch("MeasuredBaseline_usbwc", MeasuredBaseline_usbwc, baseline_ss.Data());
 // // //   tree->Branch("AmplitudeValue_usbwc", AmplitudeValue_usbwc, amplitude_ss.Data());
 // // //   tree->Branch("ComputedCharge_usbwc", ComputedCharge_usbwc, charge_ss.Data());
@@ -346,13 +340,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	  
 	  Integral_0_300[i] = hCh.Integral(1, hCh.GetXaxis()->FindBin(300), "width");//Calculating Integral of histogram from 0 to 300ns; starting from bin 1 (0 is the overflow bin) to bin corresponding to 300ns. Option "width" multiplies by bin-width such that the integral is independant of the binning
 	  trig_bin = hCh.GetXaxis()->FindBin(t[i]-10);//Bin corresponding to the trigger-time, which is given by the average of the 4 trigger signals
-	  //Calculating the Integral of the histogram from the trigger-Time (trigT) to trigT + 20/40/80/100/300ns
-	  Integral_trigT_20[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 20), "width");
-	  Integral_trigT_40[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 40), "width");
-	  Integral_trigT_60[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 60), "width");
-	  Integral_trigT_80[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 80), "width");
-	  Integral_trigT_100[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 100), "width");
-	  Integral_trigT_300[i] = hCh.Integral(trig_bin, hCh.GetXaxis()->FindBin((t[i]-10) + 300), "width");
 
           if(EventNumber%ch0PrintRate==0&&i==0){
 	    cCh0.cd(1);
@@ -365,12 +352,13 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	    else cCh0.Print((TString)(plotSaveFolder+"/ch0.pdf"),"pdf");
 	  }
 
-	 if(EventNumber%trigPrintRate==0&&(i>=0&&i<=3)){
+	 if(EventNumber%trigPrintRate==0&&(i<4)){
 	    cTrig.cd(i+1);
 	    hCh.DrawCopy();
 	    TLine* ln = new TLine(t[i],-2000,t[i],2000);
 	    ln->SetLineColor(2);
 	    ln->Draw("same");
+	    //fTrigFit->DrawCopy("same");
 	    eventTrash.push_back(ln);
 	  }
 
