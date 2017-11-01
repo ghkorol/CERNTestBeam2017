@@ -134,21 +134,19 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   Float_t t0t1 = -999;//t0t1 = [(t0-t1)]
   Float_t t2t3 = -999;//t2t3 = [(t2-t3)]
   Int_t isVeto = -999; //variable to define veto, 1 if veto, 0 if not, -999 if undefined
+  Int_t isTrig = -999;
+  Float_t trigGate = -999;
   Int_t nCh = -1;
   int nActiveCh = -1;
   Int_t ChannelNr[16];
-  Float_t amp[16];
+  std::vector<float> amp(16,-999);
+  std::vector<float> max(16,-999);
+  std::vector<float> min(16,-999);
   Float_t t[16];
   Float_t BL[16];//store baseline for 16 channels
   Float_t BL_RMS[16];//store rms of baseline for 16 channels
   float BL_output[2];//array used for output getBL-function
   float Integral_0_300[16];//array used to store Integral of signal from 0 to 300ns
-  float Integral_trigT_20[16];
-  float Integral_trigT_40[16];
-  float Integral_trigT_60[16];
-  float Integral_trigT_80[16];
-  float Integral_trigT_100[16];
-  float Integral_trigT_300[16];
   int NumberOfBins;
   int trig_bin;//stores the bin number corresponding to the trigger-time trigT; used for the Integration
   Int_t EventIDsamIndex[16];
@@ -192,15 +190,18 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("energy",&energy,"energy/F");
   tree->Branch("isSP",&isSP,"isSP/I");
   tree->Branch("mp",&mp,"mp/I");
-  
+  tree->Branch("trigGate",&trigGate,"trigGate/F");
   
   tree->Branch("trigTp",&trigTp, "trigTp/F");
   tree->Branch("t0t1",&t0t1, "t0t1/F");//t0t1 = [(t0-t1)]
   tree->Branch("t2t3",&t2t3, "t2t3/F");
   tree->Branch("isVeto",&isVeto,"isVeto/I");
+  tree->Branch("isTrig",&isTrig,"isTrig/I");
   tree->Branch("nCh",&nCh, "nCh/I");
   tree->Branch("ch",ChannelNr, "ch[nCh]/I");
-  tree->Branch("amp",amp, "amp[nCh]/F");
+  tree->Branch("amp",amp.data(), "amp[nCh]/F");
+  tree->Branch("max",max.data(), "max[nCh]/F");
+  tree->Branch("min",min.data(), "min[nCh]/F");
   tree->Branch("t",t, "t[nCh]/F");
   tree->Branch("BL", BL, "BL[nCh]/F");
   tree->Branch("BL_RMS", BL_RMS, "BL_RMS[nCh]/F");
@@ -310,16 +311,16 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	  hCh.SetTitle(title);
 	  for(int j = 0;j<1024;j++){
 	    nitem = fread (&amplValues[i][j],sizeof(short),1,pFILE);
-	    hCh.SetBinContent(j+1,fabs(amplValues[i][j]*coef*1000));
+	    hCh.SetBinContent(j+1,-(amplValues[i][j]*coef*1000));
 	  }//for 1024
-//        for(int t=0;t<nActiveCh-nCh;t++){
-// 	    int dummy;
-// 	    nitem = fread(&dummy,sizeof(int),1,pFILE);
-// 	    printf("trigger channel number: %d\n",dummy);
-// 	}
+	  //for(int t=0;t<nActiveCh-nCh;t++){
+	  //  int dummy;
+	  //  nitem = fread(&dummy,sizeof(int),1,pFILE);
+	  //  printf("trigger channel number: %d\n",dummy);
+	  //}
 
-
-
+	  max[i]=hCh.GetMaximum();
+	  min[i]=hCh.GetMinimum();
 	  amp[i]=hCh.GetMaximum();
 	  
 	  getBL(&hCh, BL_output,0,30);
