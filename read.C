@@ -267,8 +267,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
       int whileCounter = 0;
       while(nitem>0){ //event loop
       std::vector<TObject*> eventTrash;
-      isVeto = 0;
-      
       
       whileCounter++;
 	nitem = fread (&EventNumber	,sizeof(int), 1,pFILE);
@@ -376,14 +374,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 
        }//for nCh
 
-
-       if(EventNumber%wavesPrintRate==0){
-	    //TString plotSaveName("");
-	    //plotSaveName.Form("%s/wave-%d.png",plotSaveFolder.Data(),EventNumber);
-	    if(wavePrintStatus<0){cWaves.Print((TString)(plotSaveFolder+"/waves.pdf("),"pdf");wavePrintStatus=0;}
-	    else cWaves.Print((TString)(plotSaveFolder+"/waves.pdf"),"pdf");
-       }
-
       trigT = (t[0]+t[1]+t[2]+t[3])/4;
       tPMT1 = t[4] - trigT;
       tPMT2 = t[5] - trigT;
@@ -392,17 +382,42 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
       trigTp = (t[0]+t[1]-t[2]-t[3])/4;
       t0t1 = (t[0]-t[1]);
       t2t3 = (t[2]-t[3]);
-
-       if(EventNumber%trigPrintRate==0){
+      if(max[15]>5||min[15]<-5)isVeto=1;
+      else isVeto = 0;
+      trigGate = abs(*(std::max_element(t,t+4))-*(std::min_element(t,t+4)));  
+      
+      if(max[0]<1240&&max[1]<1240&&max[2]<1240&&max[3]<1240&&isVeto==0){
+	isTrig=1;
+	if(isTrig&&BL[0]<1.1&&BL[1]<1.1&&BL[2]<1.1&&BL[3]<1.1){
+	  isTrig=1;
+	  if(trigT<140&&trigT>90&&trigGate<10){
+	    isTrig=1;
+	  }
+	  else isTrig=0;
+	}
+	else isTrig=0;
+      }
+      else isTrig=0;
+      if(isTrig==1){
+	for(int j=0;j<(int)hChtemp.size();j++){
+	  hChSum.at(j)->Add(&hChtemp.at(j),1);
+	}
+      }
+      
+      if(EventNumber%wavesPrintRate==0){
+	    //TString plotSaveName("");
+	    //plotSaveName.Form("%s/wave-%d.png",plotSaveFolder.Data(),EventNumber);
+	    if(wavePrintStatus<0){cWaves.Print((TString)(plotSaveFolder+"/waves.pdf("),"pdf");wavePrintStatus=0;}
+	    else cWaves.Print((TString)(plotSaveFolder+"/waves.pdf"),"pdf");
+      }
+      if(EventNumber%trigPrintRate==0){
 	    if(trigPrintStatus<0){cTrig.Print((TString)(plotSaveFolder+"/trig.pdf("),"pdf");trigPrintStatus=0;}
 	    else cTrig.Print((TString)(plotSaveFolder+"/trig.pdf"),"pdf");
-	  }
+      }
       if(EventNumber%signalPrintRate==0){
 	    if(signalPrintStatus<0){cSignal.Print((TString)(plotSaveFolder+"/signal.pdf("),"pdf");signalPrintStatus=0;}
 	    else cSignal.Print((TString)(plotSaveFolder+"/signal.pdf"),"pdf");
-	  }
-
-
+      }
 
       tree->Fill();
       //cleanEventMemory(eventTrash);
