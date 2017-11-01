@@ -7,6 +7,7 @@
 #include <TTree.h>
 #include <TH1D.h>
 #include <TMath.h>
+#include <TF1.h>
 
 //C, C++
 #include <stdio.h>
@@ -37,8 +38,11 @@ double coef = 2.5 / (4096 * 10);
   int mp = -999;
   
 void cleanEventMemory(std::vector<TObject*>& trash);
-float CFD(TH1F* hWave,bool isNegative = 1);
-float* getBL(TH1F* hWave, bool isNegative, float* BL);
+float CFD(TH1F* hWave);
+float trigCFD(TH1F* hWave,TF1* fTrigFit);
+
+ 
+float* getBL(TH1F* hWave, float* BL, float t1, float t2); 
 TString getRunName(TString inDataFolder);
 void read(TString inFileList, TString inDataFolder, TString outFile);
 
@@ -90,6 +94,13 @@ int main(int argc, char *argv[]){
 
 void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 
+  TF1* fTrigFit = new TF1("fTrigFit","gaus");
+  fTrigFit->SetParameter(0,800);
+  fTrigFit->SetParameter(2,1);
+  fTrigFit->SetLineWidth(1);
+  
+  
+  
   ///////////////////Root file with data/////////////////
   TFile *rootFile = new TFile( _outFile, "RECREATE");
   if (rootFile->IsZombie()) {
@@ -316,17 +327,23 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 
 
 	  amp[i]=hCh.GetMaximum();
-	  t[i] = CFD(&hCh);
-	  if(amp[15]>10)isVeto=1;
-	    
+	  
+	  getBL(&hCh, BL_output,0,30);
+	  BL[i] = BL_output[0];
+	  BL_RMS[i] = BL_output[1];
+	  
 	  if(EventNumber%wavesPrintRate==0){
 	    cWaves.cd(1+4*(i%4)+(i)/4);
 	    hCh.DrawCopy();
 	  }
-  
-	  getBL(&hCh, 1, BL_output);
-	  BL[i] = BL_output[0];
-	  BL_RMS[i] = BL_output[1];
+	  for(int j=1;j<=hCh.GetXaxis()->GetNbins();j++){
+	    hCh.SetBinError(j,BL_RMS[i]);
+	  }
+	  hChtemp.at(i) = hCh;
+	  if(i<4)t[i]=trigCFD(&hCh,fTrigFit);
+	  else t[i] = CFD(&hCh);
+	  
+	  
 	  Integral_0_300[i] = hCh.Integral(1, hCh.GetXaxis()->FindBin(300), "width");//Calculating Integral of histogram from 0 to 300ns; starting from bin 1 (0 is the overflow bin) to bin corresponding to 300ns. Option "width" multiplies by bin-width such that the integral is independant of the binning
 	  trig_bin = hCh.GetXaxis()->FindBin(t[i]-10);//Bin corresponding to the trigger-time, which is given by the average of the 4 trigger signals
 	  //Calculating the Integral of the histogram from the trigger-Time (trigT) to trigT + 20/40/80/100/300ns
@@ -415,31 +432,56 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   rootFile->Close();
 }
 
-float CFD(TH1F* hWave,bool isNegative){
-  float time = -999;
-  int timePos=-999;
-  float peak=-999;
-  int peakPos = -999;
-  peak = hWave->GetMaximum();
-  peakPos = hWave->GetMaximumBin();
-  float val = peak;
-  timePos=peakPos;
-  while(abs(val)>0.1*abs(peak)){
+float CFD(TH1F* hWave){
+  float peak=hWave->GetMaximum();
+  int timePos=1;
+  float val = 0;
+  while(abs(val)<0.1*abs(peak)){
+    timePos+=1;
     val = hWave->GetBinContent(timePos);
-    timePos-=1;
   }
-  time = SP*(timePos);
-  //time = SP*(peakPos);
-  return time;
+  return SP*(timePos);
 }
 
-float* getBL(TH1F* hWave, bool isNegative, float* BL){
+float trigCFD(TH1F* hWave, TF1* fTrigFit){
+  float peak=hWave->GetMaximum();
+  int timePos=1;
+  float val = 0;
+  while(abs(val)<0.1*abs(peak)){
+    timePos+=1;
+    val = hWave->GetBinContent(timePos);
+  }
+  
+  
+  double x1 = SP*(timePos-1);
+  double x2 = SP*(timePos);
+  double y1 = hWave->GetBinContent(timePos-1);
+  double y2 = hWave->GetBinContent(timePos);
+  double k = (x2-x1)/(y2-y1);
+  return  x1+k*(0.1*abs(peak)-y1);
+  
+  
+  //fit procedure
+  //fTrigFit->SetParameter(1,SP*(timePos)+1);
+  //fTrigFit->SetRange(SP*(timePos-6),SP*(timePos+2));
+  //hWave->Fit(fTrigFit,"RNQ");
+  //double p0=fTrigFit->GetParameter(0);
+  //double p1=fTrigFit->GetParameter(1);
+  //double p2=fTrigFit->GetParameter(2);
+  //return p1-sqrt(2*p2*p2*log(p0/(0.1*abs(peak))));
+  
+  
+  
+  
+}
+
+float* getBL(TH1F* hWave, float* BL, float t1, float t2){
   /*
   Function to calculate the baseline of the given TH1F-Object.
   Input: TH1F-Object to calculate baseline for; bool isNegative; float-array BL for the output
   Output: baseline and rms of baseline written to 1st and 2nd component of BL-array
-  The baseline is calculated as the mean of the first 50 values in the TH1F-Object. The rms
-  value is also calculated from the first 50 values.
+  The baseline is calculated as the mean of the values in range of (t1,t2) of the TH1F-Object. The rms
+  value is also calculated from the same values.
   
   The float-array BL that is used for the output must be declared before the function call using 'float BL[2];'.
   This is to insure that the output is stored on the heap and not deleted when the memory on the stack is freed up.
@@ -447,9 +489,10 @@ float* getBL(TH1F* hWave, bool isNegative, float* BL){
   Dependencies: function uses C++ vector-class and needs the TMath-header
   */
   
-  vector<float> amp(50);
-  for (int i = 0; i < 50; i++){
-    amp[i] = hWave->GetBinContent(i+1);
+  vector<float> amp;
+  for (int i = int(t1/SP); i < int(t2/SP); i++){
+    
+    amp.push_back(hWave->GetBinContent(i+1));
   }
   BL[0] = TMath::Mean(amp.begin(), amp.end());
   BL[1] = TMath::RMS(amp.begin(), amp.end());
