@@ -22,7 +22,8 @@
 using namespace std;
 
 float SP = 0.3125;
-int wavesPrintRate = 100000;
+float pe = 47.46;//mV*ns
+int wavesPrintRate = 1000000;
 int ch0PrintRate = 1000000;
 int trigPrintRate = 1000000;//100
 int signalPrintRate = 100000;//100
@@ -38,8 +39,10 @@ double coef = 2.5 / (4096 * 10);
   int mp = -999;
   
 void cleanEventMemory(std::vector<TObject*>& trash);
-float CFD(TH1F* hWave);
-float trigCFD(TH1F* hWave,TF1* fTrigFit);
+float CDF(TH1F* hWave,TF1* fTrigFit,float thr);
+float iCFD(TH1F* hWave,float t,float thrNpe,float BL);
+float integral(TH1F* hWave,float t1,float t2,float BL);
+
 
  
 float* getBL(TH1F* hWave, float* BL, float t1, float t2); 
@@ -128,6 +131,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   Float_t trigT = -999;//t_trig = (t0+t1+t2+t3)/4
   Float_t tPMT1 = -999;
   Float_t tPMT2 = -999;
+  Float_t tPMT2i = -999;
   Float_t tSUMp = -999;
   Float_t tSUMm = -999;
   Float_t trigTp = -999;//t_trig' = [(t0+t1)-(t2+t3)]/4
@@ -135,6 +139,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   Float_t t2t3 = -999;//t2t3 = [(t2-t3)]
   Int_t isVeto = -999; //variable to define veto, 1 if veto, 0 if not, -999 if undefined
   Int_t isTrig = -999;
+  Int_t isGoodSignal_5 = -999;
   Float_t trigGate = -999;
   Int_t nCh = -1;
   int nActiveCh = -1;
@@ -147,11 +152,49 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   Float_t BL_RMS[16];//store rms of baseline for 16 channels
   float BL_output[2];//array used for output getBL-function
   float Integral_0_300[16];//array used to store Integral of signal from 0 to 300ns
+  float Integral[16];
   int NumberOfBins;
-  int trig_bin;//stores the bin number corresponding to the trigger-time trigT; used for the Integration
   Int_t EventIDsamIndex[16];
   Int_t FirstCellToPlotsamIndex[16];
-
+  
+  std::vector<TH1F*> hChSum;
+  for(int i=0;i<16;i++){
+    TString name("");
+    name.Form("hChSum_%d",i);
+    TH1F* h = new TH1F("h",";ns;Amplitude, mV",1024,-0.5*SP,1023.5*SP);
+    h->SetName(name);
+    hChSum.push_back(h);
+  }
+  
+  std::vector<TH1F*> hChShift;
+  for(int i=0;i<16;i++){
+    TString name("");
+    name.Form("hChShift_%d",i);
+    TH1F* h = new TH1F("h",";ns;Amplitude, mV",1024,-0.5*SP,1023.5*SP);
+    h->SetName(name);
+    hChShift.push_back(h);
+  }
+  
+  
+  std::vector<TH1F> hChtemp;
+  for(int i=0;i<16;i++){
+    TString name("");
+    name.Form("hChtemp_%d",i);
+    TH1F h("h",";ns;Amplitude, mV",1024,-0.5*SP,1023.5*SP);
+    h.SetName(name);
+    hChtemp.push_back(h);
+  }
+  
+  std::vector<TH1F> hChShift_temp;
+  for(int i=0;i<16;i++){
+    TString name("");
+    name.Form("hChShift_temp_%d",i);
+    TH1F h("h",";ns;Amplitude, mV",1024,-0.5*SP,1023.5*SP);
+    h.SetName(name);
+    hChShift_temp.push_back(h);
+  }
+  
+  
   Short_t amplValues[16][1024];
   TH1F hCh("hCh","dummy;ns;Amplitude, mV",1024,-0.5*SP,1023.5*SP);
   TString plotSaveFolder  = _outFile;
@@ -179,6 +222,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("trigT",&trigT, "trigT/F");
   tree->Branch("tPMT1",&tPMT1, "tPMT1/F");
   tree->Branch("tPMT2",&tPMT2, "tPMT2/F");
+  tree->Branch("tPMT2i",&tPMT2i, "tPMT2i/F");
   tree->Branch("tSUMp",&tSUMp, "tSUMp/F");
   tree->Branch("tSUMm",&tSUMm, "tSUMm/F");
 
@@ -197,6 +241,8 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("t2t3",&t2t3, "t2t3/F");
   tree->Branch("isVeto",&isVeto,"isVeto/I");
   tree->Branch("isTrig",&isTrig,"isTrig/I");
+  tree->Branch("isGoodSignal_5",&isGoodSignal_5,"isGoodSignal_5/I");
+  
   tree->Branch("nCh",&nCh, "nCh/I");
   tree->Branch("ch",ChannelNr, "ch[nCh]/I");
   tree->Branch("amp",amp.data(), "amp[nCh]/F");
@@ -206,7 +252,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("BL", BL, "BL[nCh]/F");
   tree->Branch("BL_RMS", BL_RMS, "BL_RMS[nCh]/F");
   tree->Branch("Integral_0_300", Integral_0_300, "Integral_0_300[nCh]/F");
-
+  tree->Branch("Integral", Integral, "Integral[nCh]/F");
   tree->Branch("EventIDsamIndex",EventIDsamIndex, "EventIDsamIndex[nCh]/I");
   tree->Branch("FirstCellToPlotsamIndex",FirstCellToPlotsamIndex, "FirstCellToPlotsamIndex[nCh]/I");
 
@@ -333,13 +379,11 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	    hCh.SetBinError(j,BL_RMS[i]);
 	  }
 	  hChtemp.at(i) = hCh;
-	  if(i<4)t[i]=trigCFD(&hCh,fTrigFit);
-	  else t[i] = CFD(&hCh);
-	  
-	  
-	  Integral_0_300[i] = hCh.Integral(1, hCh.GetXaxis()->FindBin(300), "width");//Calculating Integral of histogram from 0 to 300ns; starting from bin 1 (0 is the overflow bin) to bin corresponding to 300ns. Option "width" multiplies by bin-width such that the integral is independant of the binning
-	  trig_bin = hCh.GetXaxis()->FindBin(t[i]-10);//Bin corresponding to the trigger-time, which is given by the average of the 4 trigger signals
+	  t[i]=CDF(&hCh,fTrigFit,0.1);
 
+	  Integral_0_300[i] = (hCh.Integral(1, 1024, "width")-BL[i]*1024*SP)/pe;//Calculating Integral of histogram from 0 to 300ns; starting from bin 1 (0 is the overflow bin) to bin corresponding to 300ns. Option "width" multiplies by bin-width such that the integral is independant of the binning
+	  
+	  
           if(EventNumber%ch0PrintRate==0&&i==0){
 	    cCh0.cd(1);
 	    hCh.DrawCopy();
@@ -375,8 +419,10 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
        }//for nCh
 
       trigT = (t[0]+t[1]+t[2]+t[3])/4;
-      tPMT1 = t[4] - trigT;
-      tPMT2 = t[5] - trigT;
+      tPMT1 = t[4]-trigT;
+      tPMT2 = t[5]-trigT;
+      //tPMT2i = iCFD(&hChtemp.at(5),trigT-55,2,BL[5])-trigT;
+      Integral[5] = integral(&hChtemp.at(5),t[5]-5,t[5]+65,BL[5])/pe;
       tSUMp = t[6] - trigT;
       tSUMm = t[7] - trigT;
       trigTp = (t[0]+t[1]-t[2]-t[3])/4;
@@ -399,10 +445,20 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
       }
       else isTrig=0;
       if(isTrig==1){
+	int shift = (int)((140-trigT)/SP);
 	for(int j=0;j<(int)hChtemp.size();j++){
 	  hChSum.at(j)->Add(&hChtemp.at(j),1);
+	  hChShift_temp.at(j).Reset();
+	  for(int bin=1;bin<=hCh.GetXaxis()->GetNbins()-shift;bin++){
+	   hChShift_temp.at(j).SetBinContent(shift+bin,hChtemp.at(j).GetBinContent(bin));
+	  }
+	  hChShift.at(j)->Add(&hChShift_temp.at(j),1);
 	}
       }
+      
+      
+      if(isTrig==1&&max[5]<1240)isGoodSignal_5=1;
+      else isGoodSignal_5=0;
       
       if(EventNumber%wavesPrintRate==0){
 	    //TString plotSaveName("");
@@ -436,34 +492,21 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   rootFile->Close();
 }
 
-float CFD(TH1F* hWave){
+float CDF(TH1F* hWave, TF1* fTrigFit,float thr){
   float peak=hWave->GetMaximum();
   int timePos=1;
   float val = 0;
-  while(abs(val)<0.1*abs(peak)){
+  while(abs(val)<thr*peak){
     timePos+=1;
     val = hWave->GetBinContent(timePos);
   }
-  return SP*(timePos);
-}
-
-float trigCFD(TH1F* hWave, TF1* fTrigFit){
-  float peak=hWave->GetMaximum();
-  int timePos=1;
-  float val = 0;
-  while(abs(val)<0.1*abs(peak)){
-    timePos+=1;
-    val = hWave->GetBinContent(timePos);
-  }
-  
   
   double x1 = SP*(timePos-1);
   double x2 = SP*(timePos);
   double y1 = hWave->GetBinContent(timePos-1);
   double y2 = hWave->GetBinContent(timePos);
   double k = (x2-x1)/(y2-y1);
-  return  x1+k*(0.1*abs(peak)-y1);
-  
+  return  x1+k*(thr*peak-y1);
   
   //fit procedure
   //fTrigFit->SetParameter(1,SP*(timePos)+1);
@@ -473,11 +516,33 @@ float trigCFD(TH1F* hWave, TF1* fTrigFit){
   //double p1=fTrigFit->GetParameter(1);
   //double p2=fTrigFit->GetParameter(2);
   //return p1-sqrt(2*p2*p2*log(p0/(0.1*abs(peak))));
-  
-  
-  
-  
 }
+
+float iCFD(TH1F* hWave,float t,float thrNpe,float BL){
+  int bin1 = hWave->GetXaxis()->FindBin(t);
+  float bin1_UpEdge = hWave->GetXaxis()->GetBinUpEdge(bin1);
+  float sum = (bin1_UpEdge-t)*(hWave->GetBinContent(bin1)-BL);
+  int bin=bin1+1;
+  while(sum<thrNpe){
+      sum+=(hWave->GetBinContent(bin)-BL)*SP;
+      bin+=1;
+      if(bin>1024)return -999;
+  }
+  float bin_LowEdge = hWave->GetXaxis()->GetBinUpEdge(bin);
+  return bin_LowEdge + (sum-thrNpe)/(hWave->GetBinContent(bin)-BL); 
+}
+
+
+float integral(TH1F* hWave,float t1,float t2,float BL){
+  float BW = hWave->GetXaxis()->GetBinWidth(1);
+  int bin1 = hWave->FindBin(t1);
+  int bin2 = hWave->FindBin(t2);
+  float c1 = hWave->GetBinContent(bin1);
+  float c2 = hWave->GetBinContent(bin2);
+  return hWave->Integral(bin1,bin2,"width")-BL*(t2-t1)-c1*(t1-hWave->GetXaxis()->GetBinLowEdge(bin1))-c2*(hWave->GetXaxis()->GetBinUpEdge(bin2)-t2);
+}
+
+
 
 float* getBL(TH1F* hWave, float* BL, float t1, float t2){
   /*
