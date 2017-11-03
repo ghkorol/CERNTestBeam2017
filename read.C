@@ -40,6 +40,7 @@ double coef = 2.5 / (4096 * 10);
   
 void cleanEventMemory(std::vector<TObject*>& trash);
 float CDF(TH1F* hWave,TF1* fTrigFit,float thr);
+float CDFinvert(TH1F* hWave,float thr);
 float iCFD(TH1F* hWave,float t,float thrNpe,float BL);
 float integral(TH1F* hWave,float t1,float t2,float BL);
 
@@ -421,6 +422,10 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
       trigT = (t[0]+t[1]+t[2]+t[3])/4;
       tPMT1 = t[4]-trigT;
       tPMT2 = t[5]-trigT;
+      if(tPMT2<-52){
+	t[5]=CDFinvert(&hChtemp.at(5),0.1);
+	tPMT2 = t[5]-trigT;
+      }
       //tPMT2i = iCFD(&hChtemp.at(5),trigT-55,2,BL[5])-trigT;
       Integral[5] = integral(&hChtemp.at(5),t[5]-5,t[5]+65,BL[5])/pe;
       tSUMp = t[6] - trigT;
@@ -518,6 +523,25 @@ float CDF(TH1F* hWave, TF1* fTrigFit,float thr){
   //return p1-sqrt(2*p2*p2*log(p0/(0.1*abs(peak))));
 }
 
+float CDFinvert(TH1F* hWave,float thr){
+  float peak=hWave->GetMaximum();
+  int timePos=hWave->GetMaximumBin();
+  float val = peak;
+  while(val>thr*peak){
+    val = hWave->GetBinContent(timePos);
+    timePos-=1;
+  }
+  
+  double x1 = SP*(timePos);
+  double x2 = SP*(timePos+1);
+  double y1 = hWave->GetBinContent(timePos);
+  double y2 = hWave->GetBinContent(timePos+1);
+  double k = (x2-x1)/(y2-y1);
+  return  x1+k*(thr*peak-y1);
+  
+}
+
+
 float iCFD(TH1F* hWave,float t,float thrNpe,float BL){
   int bin1 = hWave->GetXaxis()->FindBin(t);
   float bin1_UpEdge = hWave->GetXaxis()->GetBinUpEdge(bin1);
@@ -567,6 +591,7 @@ float* getBL(TH1F* hWave, float* BL, float t1, float t2){
   BL[1] = TMath::RMS(amp.begin(), amp.end());
   return BL;
 }
+
 
 TString getRunName(TString inDataFolder){
       char* word;
