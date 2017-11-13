@@ -135,6 +135,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   Float_t tPMT2i = -999;
   Float_t tSUMp = -999;
   Float_t tSUMm = -999;
+  Float_t tSiPM = -999;
   Float_t trigTp = -999;//t_trig' = [(t0+t1)-(t2+t3)]/4
   Float_t t0t1 = -999;//t0t1 = [(t0-t1)]
   Float_t t2t3 = -999;//t2t3 = [(t2-t3)]
@@ -226,6 +227,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("tPMT2i",&tPMT2i, "tPMT2i/F");
   tree->Branch("tSUMp",&tSUMp, "tSUMp/F");
   tree->Branch("tSUMm",&tSUMm, "tSUMm/F");
+  tree->Branch("tSiPM",&tSiPM, "tSiPM/F");
 
   tree->Branch("runNr",&runNr, "runNr/I");//run number in google table
   tree->Branch("horiz",&horizontal,"horiz/F");// horizontal position of the box units: [cm]
@@ -354,10 +356,21 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	  title.Form("ch %d, ev %d",i,EventNumber);
 	  hCh.Reset();
 	  hCh.SetTitle(title);
-	  for(int j = 0;j<1024;j++){
-	    nitem = fread (&amplValues[i][j],sizeof(short),1,pFILE);
-	    hCh.SetBinContent(j+1,-(amplValues[i][j]*coef*1000));
-	  }//for 1024
+	  
+	  if(i<=5||i==15){
+	    for(int j = 0;j<1024;j++){
+	      nitem = fread (&amplValues[i][j],sizeof(short),1,pFILE);
+	      hCh.SetBinContent(j+1,-(amplValues[i][j]*coef*1000));
+	    }//for 1024
+	  }
+	  else{
+	    for(int j = 0;j<1024;j++){
+	      nitem = fread (&amplValues[i][j],sizeof(short),1,pFILE);
+	      hCh.SetBinContent(j+1,(amplValues[i][j]*coef*1000));
+	    }//for 1024
+	  }
+	  
+	  
 	  //for(int t=0;t<nActiveCh-nCh;t++){
 	  //  int dummy;
 	  //  nitem = fread(&dummy,sizeof(int),1,pFILE);
@@ -382,12 +395,13 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	  hChtemp.at(i) = hCh;
 	  t[i]=CDF(&hCh,fTrigFit,0.1);
 
-	  Integral_0_300[i] = (hCh.Integral(1, 1024, "width")-BL[i]*1024*SP)/pe;//Calculating Integral of histogram from 0 to 300ns; starting from bin 1 (0 is the overflow bin) to bin corresponding to 300ns. Option "width" multiplies by bin-width such that the integral is independant of the binning
-	  
+	  if(i<=5||i==15)Integral_0_300[i] = (hCh.Integral(1, 1024, "width")-BL[i]*1024*SP)/pe;//Calculating Integral of histogram from 0 to 300ns; starting from bin 1 (0 is the overflow bin) to bin corresponding to 300ns. Option "width" multiplies by bin-width such that the integral is independant of the binning
+	  else Integral_0_300[i] = (hCh.Integral(1, 1024, "width")-BL[i]*1024*SP);
 	  
           if(EventNumber%ch0PrintRate==0&&i==0){
-	    cCh0.cd(1);
-	    hCh.DrawCopy();
+	    //cCh0.cd(1);
+	    cCh0.cd();
+	    hCh.DrawCopy("hist");
 	    TLine ln(t[0],-2000,t[0],2000);
 	    ln.SetLineColor(2);
 	    //hCh.GetYaxis()->SetRangeUser(-10,1200);
@@ -420,6 +434,9 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
        }//for nCh
 
       trigT = (t[0]+t[1]+t[2]+t[3])/4;
+      trigTp = (t[0]+t[1]-t[2]-t[3])/4;
+      t0t1 = (t[0]-t[1]);
+      t2t3 = (t[2]-t[3]);
       tPMT1 = t[4]-trigT;
       tPMT2 = t[5]-trigT;
       if(tPMT2<-52){
@@ -428,11 +445,41 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
       }
       //tPMT2i = iCFD(&hChtemp.at(5),trigT-55,2,BL[5])-trigT;
       Integral[5] = integral(&hChtemp.at(5),t[5]-5,t[5]+65,BL[5])/pe;
+      
+      
+      hChtemp.at(6).Add(&hChtemp.at(6),&hChtemp.at(7),-1,1);
+       if(EventNumber%wavesPrintRate==0){
+	    cWaves.cd(1+4*(6%4)+(6)/4);
+	    hChtemp.at(6).DrawCopy();
+	  }
+      
+      Integral_0_300[6] = -Integral_0_300[6] + Integral_0_300[7];
+      Integral_0_300[7] = Integral_0_300[6]-Integral_0_300[8]-Integral_0_300[9]-Integral_0_300[10]-Integral_0_300[11]-Integral_0_300[12]-Integral_0_300[13]-Integral_0_300[14];
+// //       hChtemp.at(7).Add(&hChtemp.at(6),&hChtemp.at(8),1,-1);
+// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(9),1,-1);
+// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(10),1,-1);
+// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(11),1,-1);
+// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(12),1,-1);
+// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(13),1,-1);
+// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(14),1,-1);
+// //       if(EventNumber%wavesPrintRate==0){
+// // 	    cWaves.cd(1+4*(7%4)+(7)/4);
+// // 	    hChtemp.at(7).DrawCopy();
+// // 	  }
+// //       
+      
       tSUMp = t[6] - trigT;
       tSUMm = t[7] - trigT;
-      trigTp = (t[0]+t[1]-t[2]-t[3])/4;
-      t0t1 = (t[0]-t[1]);
-      t2t3 = (t[2]-t[3]);
+      t[6] = CDF(&hChtemp.at(6),fTrigFit,0.1);
+      tSiPM = t[6]-trigT;
+      if(tSiPM<-56){
+	t[6]=CDFinvert(&hChtemp.at(6),0.1);
+	tSiPM = t[6]-trigT;
+      }
+      
+      
+      
+      
       if(max[15]>5||min[15]<-5)isVeto=1;
       else isVeto = 0;
       trigGate = abs(*(std::max_element(t,t+4))-*(std::min_element(t,t+4)));  
