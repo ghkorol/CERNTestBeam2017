@@ -29,6 +29,29 @@ int trigPrintRate = 1000000;//100
 int signalPrintRate = 100000;//100
 double coef = 2.5 / (4096 * 10);
 
+//Geometry
+//functions
+std::vector<float> getStartPos(float horisontal, float vertical, float angle);//return start position of track in the box (x,y,z,angle) [mm,mm,mm,rad]
+std::vector<float> solidAngleFactor(const std::vector<float> &startPos,const std::vector<float> &pmtPos);//return solid angle correction factor and path length in the box (factor,length) [,mm]
+float solidAngleABH(float A,float B, float H);//return solid angle of pyramid with rectangular base (a,b) and hight of H
+int getZone(float x,float y,float z,float pmtX, float pmtY);
+float getSolidAngle(float x,float y,float z,float pmtX, float pmtY);
+
+
+//box dimensions
+float boxL = 500;
+float boxH = 250;
+//wom dimensions
+float womL = 200;//length
+float womDout = 70;//outer diameter [mm]
+float womDin = 42;//inner diameter [mm]
+float womR = 30;//(inner radius = 25)//wom radius [mm]
+float womRin = 26;
+//wom position
+std::vector<float> pmt2Pos = {410,410};
+
+
+
   int runNr = -999;
   float horizontal=-999;
   float vertical=-999;
@@ -37,6 +60,10 @@ double coef = 2.5 / (4096 * 10);
   float energy = -999; // [GeV]
   int isSP = -999;
   int mp = -999;
+  int safPMT2 = -999;//solid angle factor of pmt 2
+  int safPMT1 = -999;//solid angle factor of pmt 1
+  int safSiPM = -999;//solid angle factor of SiPM
+  int trackL = -999;//track length
   
 void cleanEventMemory(std::vector<TObject*>& trash);
 float CDF(TH1F* hWave,TF1* fTrigFit,float thr);
@@ -44,8 +71,6 @@ float CDFinvert(TH1F* hWave,float thr);
 float iCFD(TH1F* hWave,float t,float thrNpe,float BL);
 float integral(TH1F* hWave,float t1,float t2,float BL);
 
-
- 
 float* getBL(TH1F* hWave, float* BL, float t1, float t2); 
 TString getRunName(TString inDataFolder);
 void read(TString inFileList, TString inDataFolder, TString outFile);
@@ -82,8 +107,17 @@ int main(int argc, char *argv[]){
     cout<<"In data file list : "<<inFileList<<endl
         <<"In data path      : "<<inDataFolder<<endl
         <<"Out root file     : "<<outFile<<endl
-	<<"Run nuber         : "<<runNr<<endl;
+	<<"Run number         : "<<runNr<<endl;
 	printf("hor,ver,ang: %4.2f %4.2f %4.2f\n",horizontal,vertical,angle);
+	std::vector<float> starPos = getStartPos(horizontal,vertical,angle);
+	//printf("start pos: %4.2f %4.2f %4.2f %4.2f\n",starPos[0],starPos[1],starPos[2],starPos[3]);
+	std::vector<float> saf = solidAngleFactor(starPos,pmt2Pos);
+	//printf("length: %4.2f %4.2f \n", saf[1],10*calculateDistance(horizontal,angle*TMath::Pi()/180));
+	printf("length: %4.2f \n", saf[1]);
+	printf("saf: %4.2f \n", saf[0]);
+	safPMT2 = saf[0];
+	trackL = saf[1];
+	
     read(inFileList, inDataFolder, outFile);
 
   }
@@ -167,7 +201,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
     h->SetName(name);
     hChSum.push_back(h);
   }
-  
   std::vector<TH1F*> hChShift;
   for(int i=0;i<16;i++){
     TString name("");
@@ -176,8 +209,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
     h->SetName(name);
     hChShift.push_back(h);
   }
-  
-  
   std::vector<TH1F> hChtemp;
   for(int i=0;i<16;i++){
     TString name("");
@@ -186,7 +217,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
     h.SetName(name);
     hChtemp.push_back(h);
   }
-  
   std::vector<TH1F> hChShift_temp;
   for(int i=0;i<16;i++){
     TString name("");
@@ -195,7 +225,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
     h.SetName(name);
     hChShift_temp.push_back(h);
   }
-  
   
   Short_t amplValues[16][1024];
   TH1F hCh("hCh","dummy;ns;Amplitude, mV",1024,-0.5*SP,1023.5*SP);
@@ -210,7 +239,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   TCanvas cSignal("cSignal","cSignal",1500,900);
   cSignal.Divide(2,2);
 
-   //Event USBWC
   tree->Branch("EventNumber",&EventNumber, "EventNumber/I");
   tree->Branch("SamplingPeriod", &SamplingPeriod,  "SamplingPeriod/F");
   tree->Branch("EpochTime",&EpochTime, "EpochTime/D");
@@ -237,8 +265,13 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("energy",&energy,"energy/F");
   tree->Branch("isSP",&isSP,"isSP/I");
   tree->Branch("mp",&mp,"mp/I");
-  tree->Branch("trigGate",&trigGate,"trigGate/F");
+  tree->Branch("safPMT2",&safPMT2,"safPMT2/I");//solid angle factor
+  tree->Branch("safPMT1",&safPMT1,"safPMT1/I");//solid angle factor
+  tree->Branch("safSiPM",&safSiPM,"safSiPM/I");//solid angle factor
+  tree->Branch("trackL",&trackL,"trackL/I");//track length
+  tree->Branch("isLastEvt",&isLastEvt,"isLastEvt/I");
   
+  tree->Branch("trigGate",&trigGate,"trigGate/F");
   tree->Branch("trigTp",&trigTp, "trigTp/F");
   tree->Branch("t0t1",&t0t1, "t0t1/F");//t0t1 = [(t0-t1)]
   tree->Branch("t2t3",&t2t3, "t2t3/F");
@@ -268,7 +301,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   //tree->Branch("amplValues", amplValues, "amplValues[nCh][1024]/S");
  // tree->Branch("hCh","TH1F",&hCh,128000,1);
   ///////////////////////////////////////////////////////
-
 
     int nitem = 1;
     ifstream inList;
@@ -370,7 +402,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	    }//for 1024
 	  }
 	  
-	  
 	  //for(int t=0;t<nActiveCh-nCh;t++){
 	  //  int dummy;
 	  //  nitem = fread(&dummy,sizeof(int),1,pFILE);
@@ -428,8 +459,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	    ln->Draw("same");
 	    eventTrash.push_back(ln);
 	  }
-
-
 
        }//for nCh
 
@@ -659,3 +688,124 @@ void cleanEventMemory(std::vector<TObject*>& trash){
   }
   trash.clear();
 }
+ 
+
+float solidAngleABH(float A,float B, float H){//return solid angle of pyramid with rectangular base (a,b) and hight of H
+  return 4*TMath::ASin((A*B)/sqrt((A*A+H*H)*(B*B+H*H)));
+}
+
+std::vector<float> getStartPos(float horisontal, float vertical, float angle){//return start position of track in the box (x,y,z,angle) [mm,mm,mm,rad]
+    std::vector<float> pos(4,0);
+    pos[3]=angle*TMath::Pi()/180;
+    pos[1]=(boxL/2-vertical*10);
+    pos[0]=boxL/2+horisontal*10*TMath::Cos(pos[3])-(boxH/2-horisontal*10*TMath::Sin(pos[3]))*TMath::Tan(pos[3]);
+    if(pos[0]<0){
+      pos[2]=fabs(pos[0])/TMath::Tan(fabs(pos[3]));
+      pos[0]=0;
+    }
+    else if(pos[0]>boxL){
+      pos[2]=(pos[0]-boxL)/TMath::Tan(fabs(pos[3]));
+      pos[0]=boxL;
+    }
+    else {
+      pos[2]=0;
+    }
+    return pos;
+}
+
+int getZone(float x,float y,float z,float pmtX, float pmtY){
+  float r2 = (x-pmtX)*(x-pmtX)+(y-pmtY)*(y-pmtY);
+  if(z>=(boxH-womL)){
+    if(r2>(womDout*womDout/4))return 1;
+    else if(r2>(womDout*womDout/4))return 2;
+    else return 3;
+  }
+  else{
+    if(r2>=(womR*womR))return 4;
+    else return 5;
+  }
+}
+
+std::vector<float> solidAngleFactor(const std::vector<float> &startPos,const std::vector<float> &pmtPos){
+  std::vector<float> result(2,0);
+  float x0 = startPos[0];
+  float y0 = startPos[1];
+  float z0 = startPos[2];
+  float angle = startPos[3];
+  
+  
+  float length = 0;
+  float dLength = 1; //mm
+  float integratedSolidAngleFactor = 0;
+  float x = x0;
+  float y = y0;
+  float z = z0;  
+  while(z<=boxH && x<=boxL && z>=0 && x>=0){
+    x=x+TMath::Sin(angle);
+    z=z+TMath::Cos(angle);
+    length=length+dLength;
+    integratedSolidAngleFactor += dLength*getSolidAngle(x,y,z,pmtPos[0],pmtPos[1])/(4*TMath::Pi());
+    //printf("solidAngleFactor: %4.2f %4.2f %4.2f %4.2f %d\n",x,y,z,length,getZone(x,y,z,pmt2Pos[0],pmt2Pos[1]));
+    //printf("%d ",getZone(x,y,z,pmtPos[0],pmtPos[1]));
+  } 
+  //printf("integratedSolidAngleFactor: %4.2f\n",integratedSolidAngleFactor);
+  result[0]=integratedSolidAngleFactor;
+  result[1]=length;
+  return result;
+}
+
+float getSolidAngle(float x,float y,float z,float pmtX, float pmtY){//return solid angle per one step
+  float solidAngle = 0;
+  float x1=-999,y1=-999,z1=-999;
+  float x2=-999,y2=-999,z2=-999;
+  float dr = (4-TMath::Pi())*womR/4;
+  float r = TMath::Pi()*womR/4;
+  int zone = getZone(x,y,z,pmtX,pmtY);
+  if(zone==1){
+    float h = sqrt((x-pmtX)*(x-pmtX)+(y-pmtY)*(y-pmtY)) - r;
+    float l1 = z+womL-boxH;
+    float l2 = boxH-z;
+    float a1 = sqrt(h*h+l1*l1);
+    float a2 = sqrt(h*h+l2*l2);
+    float A = a1*sqrt(2*(1-(h*h-l1*l2)/(a1*a2)));
+    float B = 2*womR;
+    float H = sqrt(a1*a1-A*A/4);
+    return solidAngleABH(A,B,H);
+  }
+  else if(zone==4){
+    float h1 = sqrt((x-pmtX)*(x-pmtX)+(y-pmtY)*(y-pmtY)) + r;
+    float h2 = sqrt((x-pmtX)*(x-pmtX)+(y-pmtY)*(y-pmtY)) - r;
+    float l = boxH-womL-z;
+    float a1 = sqrt(h1*h1+l*l);
+    float a2 = sqrt(h2*h2+l*l);
+    float A = a1*sqrt(2*(1-(h1*h1+h2*h2+2*l*l-4*r*r-womL*womL)/(2*a1*a2)));
+    float B = 2*womR;
+    float H = sqrt(a1*a1-A*A/4);
+    return solidAngleABH(A,B,H);
+  }
+  else if(zone==2){
+    float l1 =womRin - sqrt((x-pmtX)*(x-pmtX)+(y-pmtY)*(y-pmtY));
+    float l2 =womRin + sqrt((x-pmtX)*(x-pmtX)+(y-pmtY)*(y-pmtY));
+    float h = boxH - z;
+    float H = womL - h;
+    float a1 = sqrt(l1*l1+h*h);
+    float a2 = sqrt(l2*l2+h*h);
+    float A1 = sqrt(l1*l1+H*H);
+    float A2 = sqrt(l2*l2+H*H);
+    return 2*TMath::Pi()*(sqrt((1+(h*h-l1*l2)/(a1*a2))/2)+sqrt((1+(H*H-l1*l2)/(A1*A2))/2));
+  }
+  else if(zone==5){
+    float l1 =womR - sqrt((x-pmtX)*(x-pmtX)+(y-pmtY)*(y-pmtY));
+    float l2 =womR + sqrt((x-pmtX)*(x-pmtX)+(y-pmtY)*(y-pmtY));
+    float h = boxH - z -womL;
+    float H = boxH - z;
+    float a1 = sqrt(l1*l1+h*h);
+    float a2 = sqrt(l2*l2+h*h);
+    float A1 = sqrt(l1*l1+H*H);
+    float A2 = sqrt(l2*l2+H*H);
+    return 2*TMath::Pi()*(sqrt((1+(H*H-l1*l2)/(A1*A2))/2)-sqrt((1+(h*h-l1*l2)/(a1*a2))/2));
+  }
+  else solidAngle = 0;
+  return solidAngle;
+}
+
