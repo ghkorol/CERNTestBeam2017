@@ -154,6 +154,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   TTree::SetBranchStyle(0);
 
   Int_t EventNumber=-999;
+  Int_t LastEventNumber=-999;
   Float_t SamplingPeriod = -999;
   Double_t EpochTime = -999;
   Int_t Year = -999;
@@ -175,6 +176,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   Float_t t2t3 = -999;//t2t3 = [(t2-t3)]
   Int_t isVeto = -999; //variable to define veto, 1 if veto, 0 if not, -999 if undefined
   Int_t isTrig = -999;
+  Int_t isLastEvt = -999;
   Int_t isGoodSignal_5 = -999;
   Float_t trigGate = -999;
   Int_t nCh = -1;
