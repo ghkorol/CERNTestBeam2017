@@ -777,10 +777,12 @@ float getSolidAngle(float x,float y,float z,float pmtX, float pmtY){//return sol
   else if(zone==4){
     float h1 = sqrt((x-pmtX)*(x-pmtX)+(y-pmtY)*(y-pmtY)) + r;
     float h2 = sqrt((x-pmtX)*(x-pmtX)+(y-pmtY)*(y-pmtY)) - r;
-    float l = boxH-womL-z;
-    float a1 = sqrt(h1*h1+l*l);
-    float a2 = sqrt(h2*h2+l*l);
-    float A = a1*sqrt(2*(1-(h1*h1+h2*h2+2*l*l-4*r*r-womL*womL)/(2*a1*a2)));
+    float l1 = boxH-womL-z;
+    float l2 = boxH-z;
+    float a1 = sqrt(h1*h1+l1*l1);
+    float a2 = sqrt(h2*h2+l2*l2);
+    float cosA = (a1*a1+a2*a2-4*r*r-womL*womL)/(2*a1*a2);
+    float A = a1*sqrt(2*(1-cosA));
     float B = 2*womR;
     float H = sqrt(a1*a1-A*A/4);
     return solidAngleABH(A,B,H);
@@ -807,7 +809,6 @@ float getSolidAngle(float x,float y,float z,float pmtX, float pmtY){//return sol
     float A2 = sqrt(l2*l2+H*H);
     return 2*TMath::Pi()*(sqrt((1+(H*H-l1*l2)/(A1*A2))/2)-sqrt((1+(h*h-l1*l2)/(a1*a2))/2));
   }
-  else solidAngle = 0;
-  return solidAngle;
+  else return 0;
 }
 
