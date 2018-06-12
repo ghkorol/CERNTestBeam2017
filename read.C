@@ -23,10 +23,12 @@ using namespace std;
 
 float SP = 0.3125;
 float pe = 47.46;//mV*ns
+//vector<float> pe_SiPM = {32.14, 39.33, 34.20, 30.79, 34.09, 29.99, 30.69, 29.95}; //a,b,c,d,e,f,g,h  -  Gain-Baseline from fit
+vector<float> pe_SiPM = {42.01, 34.67, 34.28, 33.84, 37.55, 34.68, 33.81, 38.84}; //sorted by Wavecatcher-Channel
 int wavesPrintRate = 1000000;
 int ch0PrintRate = 1000000;
 int trigPrintRate = 1000000;//100
-int signalPrintRate = 100000;//100
+int signalPrintRate = 100;//100
 double coef = 2.5 / (4096 * 10);
 
 //Geometry
@@ -486,6 +488,11 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
       
       Integral_0_300[6] = -Integral_0_300[6] + Integral_0_300[7];
       Integral_0_300[7] = Integral_0_300[6]-Integral_0_300[8]-Integral_0_300[9]-Integral_0_300[10]-Integral_0_300[11]-Integral_0_300[12]-Integral_0_300[13]-Integral_0_300[14];
+      for (int i=0; i<=7; i++){
+        Integral_0_300[i+7] /= pe_SiPM.at(i);
+
+      }
+
 // //       hChtemp.at(7).Add(&hChtemp.at(6),&hChtemp.at(8),1,-1);
 // //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(9),1,-1);
 // //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(10),1,-1);
@@ -503,11 +510,11 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
       tSUMm = t[7] - trigT;
       t[6] = CDF(&hChtemp.at(6),fTrigFit,0.1);
       tSiPM = t[6]-trigT;
+
       if(tSiPM<-56){
 	t[6]=CDFinvert(&hChtemp.at(6),0.1);
-	tSiPM = t[6]-trigT;
+        tSiPM = t[6]-trigT;
       }
-      
       
       
       
