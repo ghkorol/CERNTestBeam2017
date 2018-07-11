@@ -19,16 +19,31 @@
 //#include <string>
 //#include <iomanip>
 
+
+#include <TStyle.h>
+#include <TTree.h>
+#include <TH1F.h>
+#include <TH2D.h>
+#include <TEfficiency.h>
+#include <TLegend.h>
+#include <THStack.h>
+#include <THistPainter.h>
+
+#include <stdlib.h>
+#include <assert.h>
+#include <sstream>
+
 using namespace std;
 
 float SP = 0.3125;
 float pe = 47.46;//mV*ns
 //vector<float> pe_SiPM = {32.14, 39.33, 34.20, 30.79, 34.09, 29.99, 30.69, 29.95}; //a,b,c,d,e,f,g,h  -  Gain-Baseline from fit
 vector<float> pe_SiPM = {42.01, 34.67, 34.28, 33.84, 37.55, 34.68, 33.81, 38.84}; //sorted by Wavecatcher-Channel
+vector<float> SiPM_shift = {2.679, 2.532, 3.594, 3.855, 3.354, 3.886, 3.865, 4.754};
 int wavesPrintRate = 1000000;
 int ch0PrintRate = 1000000;
 int trigPrintRate = 1000000;//100
-int signalPrintRate = 100;//100
+int signalPrintRate = 100000;//100
 double coef = 2.5 / (4096 * 10);
 
 //Geometry
@@ -38,11 +53,13 @@ std::vector<float> solidAngleFactor(const std::vector<float> &startPos,const std
 float solidAngleABH(float A,float B, float H);//return solid angle of pyramid with rectangular base (a,b) and hight of H
 int getZone(float x,float y,float z,float pmtX, float pmtY);
 float getSolidAngle(float x,float y,float z,float pmtX, float pmtY);
+double correction_function(double x);
 
 
 //box dimensions
 float boxL = 500;
 float boxH = 250;
+
 //wom dimensions
 float womL = 200;//length
 float womDout = 70;//outer diameter [mm]
@@ -172,7 +189,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   Float_t tPMT2i = -999;
   Float_t tSUMp = -999;
   Float_t tSUMm = -999;
-  Float_t tSiPM = -999;
   Float_t trigTp = -999;//t_trig' = [(t0+t1)-(t2+t3)]/4
   Float_t t0t1 = -999;//t0t1 = [(t0-t1)]
   Float_t t2t3 = -999;//t2t3 = [(t2-t3)]
@@ -188,11 +204,14 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   std::vector<float> max(16,-999);
   std::vector<float> min(16,-999);
   Float_t t[16];
+  Float_t tSiPM[16];
   Float_t BL[16];//store baseline for 16 channels
   Float_t BL_RMS[16];//store rms of baseline for 16 channels
   float BL_output[2];//array used for output getBL-function
   float Integral_0_300[16];//array used to store Integral of signal from 0 to 300ns
   float Integral[16];
+  float Integral_Correction;
+  float Integral_mVns[16];
   int NumberOfBins;
   Int_t EventIDsamIndex[16];
   Int_t FirstCellToPlotsamIndex[16];
@@ -259,7 +278,6 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("tPMT2i",&tPMT2i, "tPMT2i/F");
   tree->Branch("tSUMp",&tSUMp, "tSUMp/F");
   tree->Branch("tSUMm",&tSUMm, "tSUMm/F");
-  tree->Branch("tSiPM",&tSiPM, "tSiPM/F");
 
   tree->Branch("runNr",&runNr, "runNr/I");//run number in google table
   tree->Branch("horiz",&horizontal,"horiz/F");// horizontal position of the box units: [cm]
@@ -289,10 +307,13 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   tree->Branch("max",max.data(), "max[nCh]/F");
   tree->Branch("min",min.data(), "min[nCh]/F");
   tree->Branch("t",t, "t[nCh]/F");
+  tree->Branch("tSiPM", tSiPM, "tSiPM[nCh]/F");
   tree->Branch("BL", BL, "BL[nCh]/F");
   tree->Branch("BL_RMS", BL_RMS, "BL_RMS[nCh]/F");
   tree->Branch("Integral_0_300", Integral_0_300, "Integral_0_300[nCh]/F");
   tree->Branch("Integral", Integral, "Integral[nCh]/F");
+  tree->Branch("Integral_Correction",&Integral_Correction, "Integral_Correction/F");
+  tree->Branch("Integral_mVns", Integral_mVns, "Integral_mVns[nCh]/F");
   tree->Branch("EventIDsamIndex",EventIDsamIndex, "EventIDsamIndex[nCh]/I");
   tree->Branch("FirstCellToPlotsamIndex",FirstCellToPlotsamIndex, "FirstCellToPlotsamIndex[nCh]/I");
 
@@ -393,7 +414,7 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	  hCh.Reset();
 	  hCh.SetTitle(title);
 	  
-	  if(i<=5||i==15){
+	  if(i<=5||i==15||i==6){
 	    for(int j = 0;j<1024;j++){
 	      nitem = fread (&amplValues[i][j],sizeof(short),1,pFILE);
 	      hCh.SetBinContent(j+1,-(amplValues[i][j]*coef*1000));
@@ -420,15 +441,22 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
 	  BL[i] = BL_output[0];
 	  BL_RMS[i] = BL_output[1];
 	  
-	  if(EventNumber%wavesPrintRate==0){
-	    cWaves.cd(1+4*(i%4)+(i)/4);
-	    hCh.DrawCopy();
-	  }
 	  for(int j=1;j<=hCh.GetXaxis()->GetNbins();j++){
 	    hCh.SetBinError(j,BL_RMS[i]);
 	  }
 	  hChtemp.at(i) = hCh;
 	  t[i]=CDF(&hCh,fTrigFit,0.1);
+    if (i>6 && i<15){
+      t[i]=CDF(&hCh,fTrigFit,0.33);
+    }
+
+    if(EventNumber%wavesPrintRate==0){
+      cWaves.cd(1+4*(i%4)+(i)/4);
+      hCh.DrawCopy();
+      TLine* ln = new TLine(t[i],-2000,t[i],2000);
+      ln->SetLineColor(2);
+      ln->Draw("same");
+    }
 
 	  if(i<=5||i==15)Integral_0_300[i] = (hCh.Integral(1, 1024, "width")-BL[i]*1024*SP)/pe;//Calculating Integral of histogram from 0 to 300ns; starting from bin 1 (0 is the overflow bin) to bin corresponding to 300ns. Option "width" multiplies by bin-width such that the integral is independant of the binning
 	  else Integral_0_300[i] = (hCh.Integral(1, 1024, "width")-BL[i]*1024*SP);
@@ -472,49 +500,67 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
       t2t3 = (t[2]-t[3]);
       tPMT1 = t[4]-trigT;
       tPMT2 = t[5]-trigT;
+      for (int i=0; i<=7; i++){
+        tSiPM[i+7] = t[i+7] - trigT;
+        if (tSiPM[i+7] < -66){
+          t[i+7] = CDFinvert(&hChtemp.at(i+7),0.4);
+          tSiPM[i+7] = t[i+7] - trigT;
+        }
+      }
       if(tPMT2<-52){
-	t[5]=CDFinvert(&hChtemp.at(5),0.1);
-	tPMT2 = t[5]-trigT;
+        t[5]=CDFinvert(&hChtemp.at(5),0.1);
+        tPMT2 = t[5]-trigT;
       }
       //tPMT2i = iCFD(&hChtemp.at(5),trigT-55,2,BL[5])-trigT;
       Integral[5] = integral(&hChtemp.at(5),t[5]-5,t[5]+65,BL[5])/pe;
+      for (int i=0; i<=8; i++){
+        Integral[i+6] = (integral(&hChtemp.at(i+6), trigT-65, trigT+5, BL[i+6]));
+      }
       
-      
-      hChtemp.at(6).Add(&hChtemp.at(6),&hChtemp.at(7),-1,1);
-       if(EventNumber%wavesPrintRate==0){
-	    cWaves.cd(1+4*(6%4)+(6)/4);
-	    hChtemp.at(6).DrawCopy();
-	  }
-      
-      Integral_0_300[6] = -Integral_0_300[6] + Integral_0_300[7];
-      Integral_0_300[7] = Integral_0_300[6]-Integral_0_300[8]-Integral_0_300[9]-Integral_0_300[10]-Integral_0_300[11]-Integral_0_300[12]-Integral_0_300[13]-Integral_0_300[14];
-      for (int i=0; i<=7; i++){
-        Integral_0_300[i+7] /= pe_SiPM.at(i);
-
+      hChtemp.at(6).Add(&hChtemp.at(6),&hChtemp.at(7),1,1);
+   //     if(EventNumber%wavesPrintRate==0){
+	  //   cWaves.cd(1+4*(6%4)+(6)/4);
+	  //   hChtemp.at(6).DrawCopy();
+	  // }
+      for (int i=0; i<=6; i++){
+        Integral_mVns[i+8] = Integral[i+8] + SiPM_shift.at(i+1);
       }
 
-// //       hChtemp.at(7).Add(&hChtemp.at(6),&hChtemp.at(8),1,-1);
-// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(9),1,-1);
-// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(10),1,-1);
-// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(11),1,-1);
-// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(12),1,-1);
-// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(13),1,-1);
-// //       hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(14),1,-1);
-// //       if(EventNumber%wavesPrintRate==0){
-// // 	    cWaves.cd(1+4*(7%4)+(7)/4);
-// // 	    hChtemp.at(7).DrawCopy();
-// // 	  }
-// //       
+        Integral_0_300[6] = Integral_0_300[6] + Integral_0_300[7];
+      Integral_0_300[7] = Integral_0_300[6]-Integral_0_300[8]-Integral_0_300[9]-Integral_0_300[10]-Integral_0_300[11]-Integral_0_300[12]-Integral_0_300[13]-Integral_0_300[14];
+      Integral[6] = Integral[6] + Integral[7];
+      if (Integral[6]>14000){
+      Integral_Correction = correction_function((Integral_mVns[8]+Integral_mVns[9]+Integral_mVns[10]+Integral_mVns[11]+Integral_mVns[12]+Integral_mVns[13]+Integral_mVns[14]));
+    }
+    else{
+      Integral_Correction = 0;
+    }  
+      Integral[6] = Integral[6] + Integral_Correction;
+      Integral[7] = Integral[6]-Integral[8]-Integral[9]-Integral[10]-Integral[11]-Integral[12]-Integral[13]-Integral[14];
+      Integral_mVns[6] = Integral[6];
+      //Conversion to Number of p.e.
+      for (int i=0; i<=7; i++){
+        Integral_0_300[i+7] = (Integral_0_300[i+7] + SiPM_shift.at(i)) / pe_SiPM.at(i);
+        //Integral_mVns[i+7] = Integral[i+7] + SiPM_shift.at(i);
+        Integral[i+7] = (Integral[i+7] + SiPM_shift.at(i)) / pe_SiPM.at(i);
+      }
+Integral_mVns[7] = Integral[7] + SiPM_shift.at(0); 
+
+      hChtemp.at(7).Add(&hChtemp.at(6),&hChtemp.at(8),1,-1);
+      hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(9),1,-1);
+      hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(10),1,-1);
+      hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(11),1,-1);
+      hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(12),1,-1);
+      hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(13),1,-1);
+      hChtemp.at(7).Add(&hChtemp.at(7),&hChtemp.at(14),1,-1);
+      if(EventNumber%wavesPrintRate==0){
+	    cWaves.cd(1+4*(7%4)+(7)/4);
+	    hChtemp.at(7).DrawCopy();
+	  }
+      
       
       tSUMp = t[6] - trigT;
       tSUMm = t[7] - trigT;
-      t[6] = CDF(&hChtemp.at(6),fTrigFit,0.1);
-      tSiPM = t[6]-trigT;
-
-      if(tSiPM<-56){
-	t[6]=CDFinvert(&hChtemp.at(6),0.1);
-        tSiPM = t[6]-trigT;
-      }
       
       
       
@@ -580,6 +626,23 @@ void read(TString _inFileList, TString _inDataFolder, TString _outFile){
   rootFile = tree->GetCurrentFile();
   rootFile->Write();
   rootFile->Close();
+}
+/*
+double correction_function(double x){
+  return (-142.761 + 0.976471* x ) - (6981.73 + 0.765699*x - 2.51903*TMath::Power(10,-5)*TMath::Power(x,2) + 4.76484*TMath::Power(10,-10)*TMath::Power(x,3) - 5.23299*TMath::Power(10,-15)*TMath::Power(x,4) + 3.42412*TMath::Power(10,-20)*TMath::Power(x,5) - 1.31429*TMath::Power(10,-25)*TMath::Power(x,6) + 2.72648*TMath::Power(10,-31)*TMath::Power(x,7) - 2.35592*TMath::Power(10,-37)*TMath::Power(x,8));
+}
+*/
+double correction_function(double x){
+  return (-142.761 + 0.976471* x ) - (-6498.75 + 2.76626*x - 
+    0.000141752*TMath::Power(x,2) + 
+    4.03526*TMath::Power(10,-9)*TMath::Power(x,3) - 
+    6.92814*TMath::Power(10,-14)*TMath::Power(x,4) + 
+    7.54846*TMath::Power(10,-19)*TMath::Power(x,5) - 
+    5.33119*TMath::Power(10,-24)*TMath::Power(x,6) + 
+    2.42945*TMath::Power(10,-29)*TMath::Power(x,7) - 
+    6.88509*TMath::Power(10,-35)*TMath::Power(x,8) +
+    1.10249*TMath::Power(10,-40)*TMath::Power(x,9) -
+    7.61427*TMath::Power(10,-47)*TMath::Power(x,10));
 }
 
 float CDF(TH1F* hWave, TF1* fTrigFit,float thr){
